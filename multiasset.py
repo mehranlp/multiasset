@@ -80,7 +80,7 @@ for j in range(i + 1, len(axs)):
     fig.delaxes(axs[j])
 st.pyplot(fig)
 
-# 🔗 Heatmap & Efficient Frontier
+#  Heatmap & Efficient Frontier
 col1, col2 = st.columns(2)
 
 with col1:
