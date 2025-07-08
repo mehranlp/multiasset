@@ -44,7 +44,8 @@ for t in tickers:
     st.sidebar.markdown(f"- {t}: {etf_dict[t]}")
 
 # Fetch data
-@st.cache
+@st.cache_data
+
 def get_data(tickers):
     end = datetime.today()
     start = end - timedelta(days=365 * 10)
@@ -61,7 +62,7 @@ expected_returns = ((1 + avg_daily_return) ** 252) - 1
 expected_volatility = daily_std * np.sqrt(252)
 cov_matrix = returns.cov() * 252
 
-#  Daily Return Distributions
+# Daily Return Distributions
 st.subheader("Daily Return Distributions")
 fig, axs = plt.subplots((len(tickers) + 1) // 2, 2, figsize=(14, 3.5 * ((len(tickers) + 1) // 2)))
 axs = axs.flatten()
@@ -150,29 +151,36 @@ bt_data = price_data.loc[bt_start:].dropna()
 bt_returns = bt_data.pct_change().dropna()
 bt_weighted = bt_returns[tickers].dot(norm_w)
 bt_cum = (1 + bt_weighted).cumprod() * 1000
-realized_return = bt_cum.iloc[-1] / 1000 - 1
+
+# Safely calculate realized return
+if not bt_cum.empty:
+    realized_return = bt_cum.iloc[-1] / 1000 - 1
+else:
+    realized_return = np.nan
+    st.warning("Backtest data is empty. Realized return could not be calculated.")
 
 # SPY Benchmark
 spy = yf.download("SPY", start=bt_start, end=datetime.today(), auto_adjust=True)["Close"]
 spy_cum = (1 + spy.pct_change().dropna()).cumprod() * 1000
 
-# Fix shapes for plotting
-bt_series = bt_cum.squeeze()
-spy_series = spy_cum.squeeze()
-common_index = bt_series.index.intersection(spy_series.index)
-bt_series = bt_series.loc[common_index]
-spy_series = spy_series.loc[common_index]
+if not bt_cum.empty and not spy_cum.empty:
+    bt_series = bt_cum.squeeze()
+    spy_series = spy_cum.squeeze()
+    common_index = bt_series.index.intersection(spy_series.index)
+    bt_series = bt_series.loc[common_index]
+    spy_series = spy_series.loc[common_index]
 
-# 📈 Plot cumulative returns
-st.subheader("Backtested Portfolio vs SPY Benchmark")
-fig_bt, ax_bt = plt.subplots(figsize=(12, 5))
-ax_bt.plot(bt_series.index.to_numpy(), bt_series.to_numpy(), label="Your Portfolio", color='darkgreen', linewidth=2)
-ax_bt.plot(spy_series.index.to_numpy(), spy_series.to_numpy(), label="SPY Benchmark", color='royalblue', linestyle='--', linewidth=2)
-ax_bt.set_title("Cumulative Return – $1000 Initial Investment", fontsize=14, weight='bold')
-ax_bt.set_ylabel("Portfolio Value ($)")
-ax_bt.grid(True, linestyle='--', alpha=0.6)
-ax_bt.legend()
-st.pyplot(fig_bt)
+    st.subheader("Backtested Portfolio vs SPY Benchmark")
+    fig_bt, ax_bt = plt.subplots(figsize=(12, 5))
+    ax_bt.plot(bt_series.index.to_numpy(), bt_series.to_numpy(), label="Your Portfolio", color='darkgreen', linewidth=2)
+    ax_bt.plot(spy_series.index.to_numpy(), spy_series.to_numpy(), label="SPY Benchmark", color='royalblue', linestyle='--', linewidth=2)
+    ax_bt.set_title("Cumulative Return – $1000 Initial Investment", fontsize=14, weight='bold')
+    ax_bt.set_ylabel("Portfolio Value ($)")
+    ax_bt.grid(True, linestyle='--', alpha=0.6)
+    ax_bt.legend()
+    st.pyplot(fig_bt)
+else:
+    st.warning("Not enough data to plot backtest vs benchmark.")
 
 # Summary
 port_return = np.dot(norm_w, expected_returns[tickers])
